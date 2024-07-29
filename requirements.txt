@@ -1,0 +1,9 @@
+streamlit
+pandas
+numpy
+streamlit-option-menu
+matplotlib
+openpyxl
+altair
+MFDFA
+yfinance
