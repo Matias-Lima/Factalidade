@@ -113,29 +113,28 @@ elif escolha == "Análise MF-DFA":
         ticker = tickers[ativo]
     
 
-    data_inicio = st.date_input("Data de início", datetime(2020, 1, 1))
+    data_inicio = st.date_input("Data de início", datetime(2010, 1, 1))
     data_fim = st.date_input("Data de fim", datetime(2024, 1, 1))
-
-
-    # Entradas para parâmetros
-    st.sidebar.subheader("Parâmetros MF-DFA")
-
-    order = st.sidebar.number_input("Ordem do ajuste polinomial", min_value=1, max_value=5, value=1, step=1)
-
-    min_lag_exp = st.sidebar.slider("Valor mínimo do s", min_value=0.5, max_value=2.0, value=0.5, step=0.1)
-    max_lag_exp = st.sidebar.slider("Valor máximo do s", min_value=2.0, max_value=5.0, value=3.0, step=0.1)
-    num_lags = st.sidebar.slider("Número de lags", min_value=10, max_value=100, value=50, step=5)
 
     if ticker:
         # Adquirir dados históricos do ativo
         data = yf.download(ticker, start=data_inicio, end=data_fim)
+         # Entradas para parâmetros
+        st.sidebar.subheader("Parâmetros MF-DFA")
+
+        order = st.sidebar.number_input("Ordem do ajuste polinomial", min_value=1, max_value=5, value=1, step=1)
+
+        min_lag_exp = st.sidebar.slider("Valor mínimo do s", min_value=10, max_value=20, value=12)
+        max_lag_exp = st.sidebar.slider("Valor máximo do s", min_value=int((len(data))/10), max_value=int((len(data))/7), value=int((len(data))/8))
+
 
         if not data.empty:
             st.write(f"Dados carregados para {ativo}")
             st.write(data.tail())
 
             # Selecionar o preço de fechamento para análise
-            serie_temporal = data['Adj Close'].dropna().pct_change().dropna().values
+            #serie_temporal = data['Adj Close'].dropna().pct_change().dropna().values
+            serie_temporal = np.log(data['Adj Close'] / data['Adj Close'].shift(1)).dropna().values
 
 
             st.divider()
@@ -146,9 +145,12 @@ elif escolha == "Análise MF-DFA":
             try:
                 st.write("Executando MFDFA...")
                 # Definindo os valores de lag com base na entrada do usuário
-                lag = np.unique(np.logspace(min_lag_exp, max_lag_exp, num_lags).astype(int))
-                # Calcular o (MF)DFA
+                lag = np.unique(np.linspace(min_lag_exp, max_lag_exp, 34).astype(int))
 
+                #lag = np.unique(np.logspace(0.5, 3, 100).astype(int))
+                #st.write(lag)
+
+                # Calcular o (MF)DFA
                 st.write("Selecione o valores de q")# Sidebar inputs
                 min_value = st.number_input("Valor mínimo", min_value=-100, max_value=100, value=-60, step=1)
                 max_value = st.number_input("Valor máximo", min_value=-100, max_value=100, value=60, step=1)
