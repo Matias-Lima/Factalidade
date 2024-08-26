@@ -9,8 +9,46 @@ from MFDFA import MFDFA
 import yfinance as yf
 from datetime import datetime
 from functions import singularity_spectrum, scaling_exponents, hurst_exponents
+plt.style.use('dark_background')
+from mf_adcca import dcca, basic_dcca
+#st.set_page_config(layout="wide")
+st.set_page_config(
+    layout="wide",
+    initial_sidebar_state="collapsed",
+    page_icon="📈",
+)
+
 
 # Funções -------------------------------
+
+def plot_dcca_results(S, Fqs, Fhq, S_plus, Fqs_plus, Fhq_plus, S_minus, Fqs_minus, Fhq_minus):
+    # Configuração de figuras
+    fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+    # Plot do Hurst Exponent geral
+    axs[0].plot(np.log(S), np.log(Fqs), 'o-', label='Fq(s)')
+    axs[0].set_title('Log-Log Plot of Fq(s) vs S')
+    axs[0].set_xlabel('log(S)')
+    axs[0].set_ylabel('log(Fq(s))')
+    axs[0].legend()
+
+    # Plot do Hurst Exponent para S_minus
+    axs[1].plot(np.log(S), np.log(Fqs_minus), 'o-', label='Fq(s) Minus')
+    axs[1].set_title('Log-Log Plot of Fq(s) Minus vs S')
+    axs[1].set_xlabel('log(S)')
+    axs[1].set_ylabel('log(Fq(s) Minus)')
+    axs[1].legend()
+
+    # Plot do Hurst Exponent para S_plus
+    axs[2].plot(np.log(S), np.log(Fqs_plus), 'o-', label='Fq(s) Plus')
+    axs[2].set_title('Log-Log Plot of Fq(s) Plus vs S')
+    axs[2].set_xlabel('log(S)')
+    axs[2].set_ylabel('log(Fq(s) Plus)')
+    axs[2].legend()
+
+    # Ajustar layout para evitar sobreposição
+    plt.tight_layout()
+    return fig
+
 
 def rescaled_range_analysis(ts):
     ts = list(ts)
@@ -47,8 +85,26 @@ def rescaled_range_analysis(ts):
     Hurst_exponent = np.polyfit(log_n,log_R_S,1)[0]
     return Hurst_exponent
 
-plt.style.use('dark_background')
+# Função para calcular a volatilidade
+def calculate_volatility(returns):
+    return returns.rolling(window=21).std() * np.sqrt(252)  # Volatilidade anualizada com uma janela de 21 dias
 
+# Função para calcular o retorno
+def calculate_returns(prices):
+    return prices.pct_change().dropna()
+
+# Função para plotar gráficos
+def plot_metrics(prices, returns, volatility, asset_name):
+    st.subheader(f"Gráficos para {asset_name}")
+
+    st.write("**Preço**")
+    st.line_chart(prices)
+
+    st.write("**Retorno Diário**")
+    st.line_chart(returns)
+
+    st.write("**Volatilidade Anualizada (21 dias)**")
+    st.line_chart(volatility)
 
 # ----------------------
 
@@ -72,8 +128,8 @@ def obter_tickers_energia():
         'RBOB Gasoline (RB=F)': 'RB=F',
         'Brent Crude Oil (BZ=F)': 'BZ=F'
     }
-
 tickers = obter_tickers_energia()
+
 
 energia_limpa = {
     'NextEra Energy (NEE)': 'NEE',
@@ -95,6 +151,29 @@ energia_limpa = {
     'VanEck Vectors Low Carbon Energy ETF (SMOG)': 'SMOG'
 }
 
+cryptomoedas = {
+    'Bitcoin (BTC)': 'BTC-USD',
+    'Ethereum (ETH)': 'ETH-USD',
+    'Ripple (XRP)': 'XRP-USD',
+    'Litecoin (LTC)': 'LTC-USD',
+    'Bitcoin Cash (BCH)': 'BCH-USD',
+    'Cardano (ADA)': 'ADA-USD',
+    'Polkadot (DOT)': 'DOT-USD',
+    'Binance Coin (BNB)': 'BNB-USD',
+    'Chainlink (LINK)': 'LINK-USD',
+    'Stellar (XLM)': 'XLM-USD',
+    'Dogecoin (DOGE)': 'DOGE-USD',
+    'Solana (SOL)': 'SOL-USD',
+    'Tron (TRX)': 'TRX-USD',
+    'Monero (XMR)': 'XMR-USD',
+    'EOS (EOS)': 'EOS-USD',
+    'Tezos (XTZ)': 'XTZ-USD',
+    'NEO (NEO)': 'NEO-USD',
+    'VeChain (VET)': 'VET-USD',
+    'Dash (DASH)': 'DASH-USD',
+    'Zcash (ZEC)': 'ZEC-USD'
+}
+
 energia_nao_limpa = {
         'Exxon Mobil (XOM)': 'XOM',
         'Chevron (CVX)': 'CVX',
@@ -114,8 +193,7 @@ energia_nao_limpa = {
     }
 
 
-
-# Funções -------------------------------
+# Funções Acima -------------------------------
 
 # Título do app
 st.title("Análise Fractal")
@@ -125,18 +203,21 @@ imagem_url = "fractal.jpg"
 st.sidebar.image(imagem_url, caption='Fractalidade', use_column_width=False, output_format="JPEG", width=280)
 
 # Menu na barra lateral
-menu = ["Main", "Análise MF-DFA", "Análise R/S", "Comparação de Ativos", "Informações"]
+menu = ["Main", "Análise MF-DFA", "Análise R/S", "Comparação de Ativos","Análise MF-ADCCA" ,"Informações"]
 escolha = st.sidebar.selectbox("Navegue", menu)
+
 
 if escolha == "Main":
     st.subheader("Análise Multifractal")
+
+    st.write("Navegue pelo menu, basta clicar no > sidebar no lado superior esquerdo")
 
     st.write("The study of financial or crude oil markets is largely based on current main stream literature, whose fundamental assumption is that stock price (or returns) follows a normal distribution and price behavior obeys ‘random-walk’ hypothesis (RWH), which was first introduced by Bachelier (1900), since then it has been adopted as the essence of many asset pricing models. However, some important results in econophysics suggest that price (or returns) in financial or commodity markets have fundamentally different properties that contradict or reject RWH. These ubiquitous properties identified are: fat tails (Gopikrishnan 2001), long-term correlation (Alvarez 2008), volatility clustering (Kim 2008), fractals multifractals (He et al. 2007), chaos (Adrangi 2001), etc. Nowadays, RWH has been widely criticized in the finance and econophysics literature as this hypothesis fails to explain the market phenomena.")
 
     st.write("Fractal methods are divided into single fractal and multifractal methods. Single-fractal analysis is mainly the long memory (long memory) (also known as Persistence) or anti-persistence. The long-term memory (long-range correlation) in the financial time series is mainly judged by the Hurst index estimated by various methods")
 
     st.write(" Evidence of H differences from a half (1/2) could be interpreted as proof that returns are not independent and that long-term memory is present (Peters 1994, 1996). This shows that the volatility of securities prices to a certain extent, there is predictability. Rachev (2010), Paolella (2016), Francq (2016) etc. have confirmed that the fractal distribution have freat adaptability in the financial market, and opened up a new path for the financial market forecast.")
-    
+
 
 elif escolha == "Análise MF-DFA":
     st.subheader("Análise Multifractal Detrended Fluctuation")
@@ -310,6 +391,7 @@ elif escolha == "Análise MF-DFA":
         else:
             st.error("Erro ao carregar dados. Verifique o ticker selecionado ou a conectividade de rede.")
 
+
 elif escolha == "Comparação de Ativos":
 
     st.subheader("Comparação de Ativos")
@@ -474,10 +556,6 @@ elif escolha == "Comparação de Ativos":
             st.error("Erro ao carregar dados. Verifique os tickers selecionados ou a conectividade de rede.")
 
 
-
-
-
-
 elif escolha == "Análise R/S":
     st.subheader("Rescaled Range Analysis (R/S)")
     st.write(" A Method for Detecting Persistence, Randomness, or Mean Reversion in Financial Markets")
@@ -517,6 +595,114 @@ elif escolha == "Análise R/S":
                 st.error(f"Erro na análise R/S: {e}")
         else:
             st.error("Erro ao carregar dados. Verifique o ticker selecionado ou a conectividade de rede.")
+
+
+elif escolha == "Análise MF-ADCCA":
+
+    st.subheader("Multifractal Asymmetric Detrended Cross-Correlation Analysis (MF-ADCCA)")
+
+    st.write("Explorando correlações cruzadas multifractais assimétricas de preço e volatilidade.")
+
+    ativo_1 = st.selectbox("Escolha o primeiro ativo", list(cryptomoedas.keys()) + ["Outro (inserir ticker)"])
+    ativo_2 = st.selectbox("Escolha o segundo ativo", list(cryptomoedas.keys()) + ["Outro (inserir ticker)"])
+
+    # Verificar se o usuário escolheu inserir um ticker manualmente para o primeiro ativo
+    if ativo_1 == "Outro (inserir ticker)":
+        ticker_1 = st.text_input("Insira o ticker do primeiro ativo")
+    else:
+        ticker_1 = cryptomoedas[ativo_1]
+
+    # Verificar se o usuário escolheu inserir um ticker manualmente para o segundo ativo
+    if ativo_2 == "Outro (inserir ticker)":
+        ticker_2 = st.text_input("Insira o ticker do segundo ativo")
+    else:
+        ticker_2 = cryptomoedas[ativo_2]
+
+    data_inicio = st.date_input("Data de início", datetime(2020, 1, 1))
+    data_fim = st.date_input("Data de fim", datetime(2024, 1, 1))
+
+    st.sidebar.write("Defina os valores de q")
+    min_value = st.sidebar.number_input("Valor mínimo", min_value=-100, max_value=100, value=-60, step=1)
+    max_value = st.sidebar.number_input("Valor máximo", min_value=-100, max_value=100, value=60, step=1)
+    step_value = st.sidebar.number_input("Passo (step)", min_value=1, max_value=100, value=3, step=1)
+    # Generate the array based on the inputs
+    q = np.arange(min_value, max_value + step_value, step_value)
+
+    if ticker_1 and ticker_2:
+
+        data_1 = yf.download(ticker_1, start=data_inicio, end=data_fim)
+        data_2 = yf.download(ticker_2, start=data_inicio, end=data_fim)
+
+        if not data_1.empty and not data_2.empty:
+
+            st.write(f"Dados carregados para {ativo_1} e {ativo_2}")
+
+            st.write("Executando análise MF-ADCCA...")
+
+            min_lag_exp = st.sidebar.slider("Valor mínimo do s", min_value=10, max_value=20, value=12)
+            max_lag_exp = st.sidebar.slider("Valor máximo do s", min_value=int((len(data_1))/10), max_value=int((len(data_1))/7), value=int((len(data_1))/8))
+
+            lag = np.unique(np.linspace(min_lag_exp, max_lag_exp, 34).astype(int))
+
+            col1, col2 = st.columns(2)
+            with col1:
+
+                st.write(data_1.tail())
+
+                serie_temporal_1 = data_1['Close'].dropna()
+                st.title("Análise de Criptomoedas")
+                prices = serie_temporal_1
+                returns = calculate_returns(prices)
+                volatility = calculate_volatility(returns)
+
+                # Plotar gráficos
+                plot_metrics(prices, returns, volatility, ticker_1)
+
+                try:         
+
+                    S, Fqs, Fhq, S_plus, Fqs_plus, Fhq_plus, S_minus, Fqs_minus, Fhq_minus = dcca(
+                        returns[20:].values, volatility[20:].values,S=lag,m=2, Q=q, trend_base=True)
+                    st.write("Análise concluída!")
+
+                    st.subheader("Plots da Análise Multifractal com DCCA")
+
+                    # Renderizar os gráficos
+                    fig = plot_dcca_results(S, Fqs, Fhq, S_plus, Fqs_plus, Fhq_plus, S_minus, Fqs_minus, Fhq_minus)
+                    st.pyplot(fig)
+
+                except Exception as e:
+                    st.error(f"Erro na análise MF-ADCCA: {e}")
+
+            with col2:
+
+                st.write(data_2.tail())
+                serie_temporal_2 = data_2['Close'].dropna()
+
+                st.title("Análise de Criptomoedas")
+
+                prices2 = serie_temporal_2
+                returns2 = calculate_returns(prices2)
+                volatility2 = calculate_volatility(returns2)
+                # Plotar gráficos
+                plot_metrics(prices2, returns2, volatility2, ticker_2)
+
+                try:
+                    S, Fqs, Fhq, S_plus, Fqs_plus, Fhq_plus, S_minus, Fqs_minus, Fhq_minus = dcca(
+                        returns2[20:].values, volatility2[20:].values,S=lag,m=2, Q=q, trend_base=True)
+
+                    st.write("Análise concluída!")
+
+                    st.subheader("Plots da Análise Multifractal com DCCA")
+                    # Renderizar os gráficos
+                    fig = plot_dcca_results(S, Fqs, Fhq, S_plus, Fqs_plus, Fhq_plus, S_minus, Fqs_minus, Fhq_minus)
+                    st.pyplot(fig)
+
+                except Exception as e:
+                    st.error(f"Erro na análise MF-ADCCA: {e}")  
+
+            
+        else:
+            st.error("Erro ao carregar dados. Verifique os tickers selecionados ou a conectividade de rede.")
 
 
 elif escolha == "Informações":
