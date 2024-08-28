@@ -278,6 +278,7 @@ elif escolha == "Análise MF-DFA":
                 q = np.arange(min_value, max_value + step_value, step_value)
 
                 lag, dfa = MFDFA(serie_temporal, lag=lag, q=q, order=order)
+
                 # Visualizar os resultados
                 n_series = dfa.shape[1]  # Número de séries em dfa
                 plt.figure(figsize=(10, 5))
@@ -622,6 +623,7 @@ elif escolha == "Análise MF-ADCCA":
     data_fim = st.date_input("Data de fim", datetime(2024, 1, 1))
 
     st.sidebar.write("Defina os valores de q")
+    
     min_value = st.sidebar.number_input("Valor mínimo", min_value=-100, max_value=100, value=-60, step=1)
     max_value = st.sidebar.number_input("Valor máximo", min_value=-100, max_value=100, value=60, step=1)
     step_value = st.sidebar.number_input("Passo (step)", min_value=1, max_value=100, value=3, step=1)
@@ -664,10 +666,26 @@ elif escolha == "Análise MF-ADCCA":
                         returns[20:].values, volatility[20:].values,S=lag,m=2, Q=q, trend_base=True)
                     st.write("Análise concluída!")
 
-                    st.subheader("Plots da Análise Multifractal com DCCA")
+                    st.subheader(f"Análise Multifractal com {ticker_1}")
 
                     # Renderizar os gráficos
                     fig = plot_dcca_results(S, Fqs, Fhq, S_plus, Fqs_plus, Fhq_plus, S_minus, Fqs_minus, Fhq_minus)
+                    st.pyplot(fig)
+
+                                        # Configurando o título do app
+                    st.write("Gráfico Hurst generalizados (Hurst Exponents)")
+                    # Criando a figura e os eixos
+                    fig, ax = plt.subplots()
+                    # Plotando os valores de Fhq, Fhq_plus, e Fhq_minus
+                    ax.plot(q, Fhq, label="overall", marker='o')
+                    ax.plot(q, Fhq_plus, label="uptrend", marker='x')
+                    ax.plot(q, Fhq_minus, label="downtrend", marker='s')
+                    # Configurando os labels dos eixos
+                    ax.set_xlabel("q")
+                    ax.set_ylabel("expoentes de Hurst generalizados")
+                    # Adicionando a legenda
+                    ax.legend()
+                    # Exibindo o gráfico no Streamlit
                     st.pyplot(fig)
 
                 except Exception as e:
@@ -692,13 +710,35 @@ elif escolha == "Análise MF-ADCCA":
 
                     st.write("Análise concluída!")
 
-                    st.subheader("Plots da Análise Multifractal com DCCA")
+                    st.subheader(f"Análise Multifractal com {ticker_2}")
                     # Renderizar os gráficos
                     fig = plot_dcca_results(S, Fqs, Fhq, S_plus, Fqs_plus, Fhq_plus, S_minus, Fqs_minus, Fhq_minus)
                     st.pyplot(fig)
 
+                    # Calcular os expoentes de Hurst generalizados (Hurst Exponents)
+                    # Configurando o título do app
+                    st.write("Gráfico Hurst generalizados (Hurst Exponents)")
+                    # Criando a figura e os eixos
+                    fig, ax = plt.subplots()
+                    # Plotando os valores de Fhq, Fhq_plus, e Fhq_minus
+                    ax.plot(q, Fhq, label="overall", marker='o')
+                    ax.plot(q, Fhq_plus, label="uptrend", marker='x')
+                    ax.plot(q, Fhq_minus, label="downtrend", marker='s')
+                    # Configurando os labels dos eixos
+                    ax.set_xlabel("q")
+                    ax.set_ylabel("expoentes de Hurst generalizados")
+                    # Adicionando a legenda
+                    ax.legend()
+                    # Exibindo o gráfico no Streamlit
+                    st.pyplot(fig)
+
+
+
+                   
                 except Exception as e:
-                    st.error(f"Erro na análise MF-ADCCA: {e}")  
+                    st.error(f"Erro na análise MF-ADCCA: {e}") 
+
+
 
             
         else:
