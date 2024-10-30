@@ -1,0 +1,9 @@
+import streamlit as st
+
+st.subheader("Análise Multifractal")
+
+st.write("The study of financial or crude oil markets is largely based on current main stream literature, whose fundamental assumption is that stock price (or returns) follows a normal distribution and price behavior obeys ‘random-walk’ hypothesis (RWH), which was first introduced by Bachelier (1900), since then it has been adopted as the essence of many asset pricing models. However, some important results in econophysics suggest that price (or returns) in financial or commodity markets have fundamentally different properties that contradict or reject RWH. These ubiquitous properties identified are: fat tails (Gopikrishnan 2001), long-term correlation (Alvarez 2008), volatility clustering (Kim 2008), fractals multifractals (He et al. 2007), chaos (Adrangi 2001), etc. Nowadays, RWH has been widely criticized in the finance and econophysics literature as this hypothesis fails to explain the market phenomena.")
+
+st.write("Fractal methods are divided into single fractal and multifractal methods. Single-fractal analysis is mainly the long memory (long memory) (also known as Persistence) or anti-persistence. The long-term memory (long-range correlation) in the financial time series is mainly judged by the Hurst index estimated by various methods")
+
+st.write(" Evidence of H differences from a half (1/2) could be interpreted as proof that returns are not independent and that long-term memory is present (Peters 1994, 1996). This shows that the volatility of securities prices to a certain extent, there is predictability. Rachev (2010), Paolella (2016), Francq (2016) etc. have confirmed that the fractal distribution have freat adaptability in the financial market, and opened up a new path for the financial market forecast.")

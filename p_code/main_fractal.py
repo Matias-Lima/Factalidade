@@ -11,7 +11,9 @@ from datetime import datetime
 from functions import singularity_spectrum, scaling_exponents, hurst_exponents
 plt.style.use('dark_background')
 from mf_adcca import dcca, basic_dcca
+from arch import arch_model
 #st.set_page_config(layout="wide")
+
 st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -21,35 +23,7 @@ st.set_page_config(
 
 # Funções -------------------------------
 
-def plot_dcca_results(S, Fqs, Fhq, S_plus, Fqs_plus, Fhq_plus, S_minus, Fqs_minus, Fhq_minus):
-    # Configuração de figuras
-    fig, axs = plt.subplots(1, 3, figsize=(18, 6))
-    # Plot do Hurst Exponent geral
-    axs[0].plot(np.log(S), np.log(Fqs), 'o-', label='Fq(s)')
-    axs[0].set_title('Log-Log Plot of Fq(s) vs S')
-    axs[0].set_xlabel('log(S)')
-    axs[0].set_ylabel('log(Fq(s))')
-    axs[0].legend()
-
-    # Plot do Hurst Exponent para S_minus
-    axs[1].plot(np.log(S), np.log(Fqs_minus), 'o-', label='Fq(s) Minus')
-    axs[1].set_title('Log-Log Plot of Fq(s) Minus vs S')
-    axs[1].set_xlabel('log(S)')
-    axs[1].set_ylabel('log(Fq(s) Minus)')
-    axs[1].legend()
-
-    # Plot do Hurst Exponent para S_plus
-    axs[2].plot(np.log(S), np.log(Fqs_plus), 'o-', label='Fq(s) Plus')
-    axs[2].set_title('Log-Log Plot of Fq(s) Plus vs S')
-    axs[2].set_xlabel('log(S)')
-    axs[2].set_ylabel('log(Fq(s) Plus)')
-    axs[2].legend()
-
-    # Ajustar layout para evitar sobreposição
-    plt.tight_layout()
-    return fig
-
-
+# Função para calcular o R/S rescaled_range_analysis
 def rescaled_range_analysis(ts):
     ts = list(ts)
     N = len(ts)
@@ -93,6 +67,18 @@ def calculate_volatility(returns):
 def calculate_returns(prices):
     return prices.pct_change().dropna()
 
+# Função para calcular a volatilidade com o modelo GARCH (1,1)
+def calculate_garch_volatility(data):
+    petr_gm = arch_model(data, p=1, q=1, mean='constant', vol='GARCH', dist='normal')
+    petr_fit = petr_gm.fit(disp='off')
+    return petr_fit.conditional_volatility
+
+# Função para calcular a volatilidade com o modelo TGARCH (1,1,2)
+def calculate_tgarch_volatility(data):
+    model = arch_model(data, mean="Zero", p=1, o=1, q=1, power=1.0)
+    result = model.fit(disp="off")
+    return result.conditional_volatility
+
 # Função para plotar gráficos
 def plot_metrics(prices, returns, volatility, asset_name):
     st.subheader(f"Gráficos para {asset_name}")
@@ -106,7 +92,159 @@ def plot_metrics(prices, returns, volatility, asset_name):
     st.write("**Volatilidade Anualizada (21 dias)**")
     st.line_chart(volatility)
 
-# ----------------------
+def plot_dcca(dat1, dat2):
+
+    st.subheader("Análise Multifractal DCCA")
+
+    # Configurando a figura no Streamlit
+    fig, ax = plt.subplots(1, 3, figsize=(18, 4))
+
+    # Overall
+    q_values = [-10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10]
+    colors = ['#9467bd'] * 11
+    for q, color in zip(q_values, colors):
+        plot_df = np.log(np.reshape(basic_dcca(dat1, dat2, Q=[q])[:2], [2, 100]))
+        ax[0].plot(plot_df[0], plot_df[1], linestyle='solid', color=color)
+    ax[0].set_xlabel('$\ln(s)$', size=12)
+    ax[0].set_ylabel('$\ln(F_q(s))$', size=12)
+    ax[0].set_title('Price-Volatility (Overall)')
+    ax[0].grid(True)
+    ax[0].legend(['q = {}'.format(q) for q in q_values])
+
+    # Uptrend
+    for q, color in zip(q_values, ['#1f77b4'] * 11):
+        plot_df = np.log(np.reshape(basic_dcca(dat1, dat2, Q=[q])[3:5], [2, 100]))
+        ax[1].plot(plot_df[0], plot_df[1], linestyle='dashed', color=color)
+    ax[1].set_xlabel('$\ln(s)$', size=12)
+    ax[1].set_ylabel('$\ln(F^+_q(s))$', size=12)
+    ax[1].set_title('Price-Volatility (Uptrend)')
+    ax[1].grid(True)
+    ax[1].legend(['q = {}'.format(q) for q in q_values])
+
+    # Downtrend
+    for q, color in zip(q_values, ['#d62728'] * 11):
+        plot_df = np.log(np.reshape(basic_dcca(dat1, dat2, Q=[q])[6:8], [2, 100]))
+        ax[2].plot(plot_df[0], plot_df[1], linestyle='dashdot', color=color)
+    ax[2].set_xlabel('$\ln(s)$', size=12)
+    ax[2].set_ylabel('$\ln(F^-_q(s))$', size=12)
+    ax[2].set_title('Price-Volatility (Downtrend)')
+    ax[2].grid(True)
+    ax[2].legend(['q = {}'.format(q) for q in q_values])
+
+    # Exibir gráfico no Streamlit
+    st.pyplot(fig)
+
+# Função para plotar A-MFDFA e MF-ADCCA
+def plot_amfdfa_mfadcca(dat1, dat2, trend_base):
+
+    st.subheader("A-MFDFA e MF-ADCCA para Price-Volatility")
+
+    # Tamanho da figura
+    fig = plt.figure(figsize=(6, 4))
+
+    # Definindo labels dos eixos
+    plt.xlabel('$q$', size=14)
+    plt.ylabel('Exponentes de Hurst generalizados', size=14)
+
+    # Valores de q a serem plotados
+    qorders = list(range(-60, 60))
+
+    # Cálculo DCCA
+    est_results_xy = basic_dcca(dat1, dat2, Q=qorders, trend_base=trend_base, asymmetry_base='optional')
+
+    # Plotagem dos resultados
+    plt.plot(qorders, est_results_xy[2], marker="o", markersize=7, linestyle='solid', label='overall', color='#9467bd')
+    plt.plot(qorders, est_results_xy[5], marker="^", markersize=7, linestyle='solid', label='uptrend', color='#1f77b4')
+    plt.plot(qorders, est_results_xy[8], marker="v", markersize=7, linestyle='solid', label='downtrend', color='#d62728')
+
+    # Limites do eixo y
+    #plt.ylim(0, 1)
+
+    # Exibir legenda
+    plt.legend(frameon=True)
+
+    # Exibir o gráfico no Streamlit
+    st.pyplot(fig)
+
+# Função para calcular e plotar a função massa tau(q)
+def plot_mass_function_tau_q(dat1, dat2, trend_base):
+
+    st.subheader("Função Massa Tau(q) usando MFDFA e MFDCCA")
+
+    # Tamanho da figura
+    fig = plt.figure(figsize=(6, 4))
+
+    # Definindo labels dos eixos
+    plt.xlabel('$q$', size=14)
+    plt.ylabel('Função Massa', size=14)
+
+    # Valores de q a serem plotados
+    qorders = list(range(-10, 11))
+
+    # Cálculo DCCA
+    est_results_xy = basic_dcca(dat1, dat2, Q=qorders, trend_base=trend_base, asymmetry_base='optional')
+
+    # Exponentes de Hurst generalizados
+    gh_xy_overall = est_results_xy[2]
+    gh_xy_uptrend = est_results_xy[5]
+    gh_xy_downtrend = est_results_xy[8]
+
+    # Plot da função massa tau(q)
+    plt.plot(qorders, gh_xy_overall * np.array(qorders) - 1, marker="o", markersize=7, linestyle='solid', label='overall', color='#9467bd')
+    plt.plot(qorders, gh_xy_uptrend * np.array(qorders) - 1, marker="^", markersize=7, linestyle='solid', label='uptrend', color='#1f77b4')
+    plt.plot(qorders, gh_xy_downtrend * np.array(qorders) - 1, marker="v", markersize=7, linestyle='solid', label='downtrend', color='#d62728')
+
+    # Exibir legenda
+    plt.legend(frameon=True)
+
+    # Exibir o gráfico no Streamlit
+    st.pyplot(fig)
+
+# Função para calcular o espectro de singularidade
+def plot_singularity_spectra(dat1, dat2, trend_base):
+    fig_2 = plt.figure(figsize=(6, 4))  # Tamanho da figura
+
+    # Definindo labels dos eixos
+    plt.xlabel('$alpha$', size=14)
+    plt.ylabel('Singularity Spectra', size=14)
+
+    # Valores de q a serem plotados (entre -5 e 5)
+    qorders = np.array([-5, -4.5, -4, -3.5, -3, -2.5, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]).tolist()
+    qorders_D = (np.array(qorders) + 0.1).tolist()
+
+    # Cálculo DCCA
+    est_results_xy = basic_dcca(dat1, dat2, Q=qorders, trend_base=trend_base, asymmetry_base='optional')
+    est_results_Dxy = basic_dcca(dat1, dat2, Q=qorders_D, trend_base=trend_base, asymmetry_base='optional')
+
+    # Cálculo de tau(q)
+    tau_xy_overall = est_results_xy[2] * np.array(qorders) - 1
+    tau_xy_uptrend = est_results_xy[5] * np.array(qorders) - 1
+    tau_xy_downtrend = est_results_xy[8] * np.array(qorders) - 1
+
+    tau_Dxy_overall = est_results_Dxy[2] * np.array(qorders_D) - 1
+    tau_Dxy_uptrend = est_results_Dxy[5] * np.array(qorders_D) - 1
+    tau_Dxy_downtrend = est_results_Dxy[8] * np.array(qorders_D) - 1
+
+    # Cálculo de alpha (derivada numérica de tau(q))
+    alpha_xy_overall = (tau_Dxy_overall - tau_xy_overall) / 0.1
+    alpha_xy_uptrend = (tau_Dxy_uptrend - tau_xy_uptrend) / 0.1
+    alpha_xy_downtrend = (tau_Dxy_downtrend - tau_xy_downtrend) / 0.1
+
+    # Plotando o espectro de singularidade
+    plt.plot(alpha_xy_overall, np.array(qorders) * alpha_xy_overall - tau_xy_overall, marker="o", markersize=7, linestyle='solid', label='overall', color='#9467bd')
+    plt.plot(alpha_xy_uptrend, np.array(qorders) * alpha_xy_uptrend - tau_xy_uptrend, marker="^", markersize=7, linestyle='solid', label='uptrend', color='#1f77b4')
+    plt.plot(alpha_xy_downtrend, np.array(qorders) * alpha_xy_downtrend - tau_xy_downtrend, marker="v", markersize=7, linestyle='solid', label='downtrend', color='#d62728')
+
+    # Exibir legenda e ajustar os limites do gráfico
+    plt.legend(frameon=True)
+
+    # Exibir o gráfico
+    st.pyplot(fig_2)
+
+
+# Funções Acima -------------------------------
+
+# ---------------------- Dicionários
 
 @st.cache_data
 def obter_tickers_energia():
@@ -128,8 +266,8 @@ def obter_tickers_energia():
         'RBOB Gasoline (RB=F)': 'RB=F',
         'Brent Crude Oil (BZ=F)': 'BZ=F'
     }
-tickers = obter_tickers_energia()
 
+tickers = obter_tickers_energia()
 
 energia_limpa = {
     'NextEra Energy (NEE)': 'NEE',
@@ -192,8 +330,7 @@ energia_nao_limpa = {
         'Brent Crude Oil (BZ=F)': 'BZ=F'
     }
 
-
-# Funções Acima -------------------------------
+# -------------------------------
 
 # Título do app
 st.title("Análise Fractal")
@@ -204,7 +341,8 @@ st.sidebar.image(imagem_url, caption='Fractalidade', use_column_width=False, out
 
 # Menu na barra lateral
 menu = ["Main", "Análise MF-DFA", "Análise R/S", "Comparação de Ativos","Análise MF-ADCCA" ,"Informações"]
-escolha = st.sidebar.selectbox("Navegue", menu)
+escolha = st.sidebar.radio("Navegue", menu)
+st.sidebar.divider()
 
 
 if escolha == "Main":
@@ -654,39 +792,111 @@ elif escolha == "Análise MF-ADCCA":
                 serie_temporal_1 = data_1['Close'].dropna()
                 st.title("Análise de Criptomoedas")
                 prices = serie_temporal_1
-                returns = calculate_returns(prices)
-                volatility = calculate_volatility(returns)
+                petr = calculate_returns(prices)
+                returns = petr
+
+                # Configuração do Streamlit
+                st.title("Escolha o Modelo de Volatilidade")
+
+                # Opções de modelo
+                model_choice = st.selectbox("Selecione o modelo para cálculo de volatilidade", ["GARCH", "TGARCH"])
+
+                # Exibir dados
+                st.write("Dados dos retornos:")
+                st.line_chart(petr)
+
+                # Cálculo e exibição do resultado com base no modelo escolhido
+                if model_choice == "GARCH":
+                    st.write("Volatilidade Condicional - Modelo GARCH:")
+                    vol_garch = calculate_garch_volatility(petr)
+                    st.line_chart(vol_garch)
+
+                elif model_choice == "TGARCH":
+                    st.write("Volatilidade Condicional - Modelo TGARCH:")
+                    vol_tgarch = calculate_tgarch_volatility(petr)
+                    st.line_chart(vol_tgarch)
+                    
+                    st.write(len(vol_tgarch))
+
+                # Calcular vi_t (diferencial logarítmico da volatilidade condicional) para o TGARCH
+                if model_choice == "TGARCH":
+                    vi_t = np.log(vol_tgarch) - np.log(vol_tgarch.shift(1))
+                    st.write("Diferencial Logarítmico da Volatilidade Condicional (vi_t):")
+                    st.line_chart(vi_t)
+
+                volatility = calculate_volatility(petr)
+
 
                 # Plotar gráficos
-                plot_metrics(prices, returns, volatility, ticker_1)
+                #plot_metrics(prices, returns, volatility, ticker_1)
 
                 try:         
 
-                    S, Fqs, Fhq, S_plus, Fqs_plus, Fhq_plus, S_minus, Fqs_minus, Fhq_minus = dcca(
-                        returns[20:].values, volatility[20:].values,S=lag,m=2, Q=q, trend_base=True)
-                    st.write("Análise concluída!")
-
                     st.subheader(f"Análise Multifractal com {ticker_1}")
 
-                    # Renderizar os gráficos
-                    fig = plot_dcca_results(S, Fqs, Fhq, S_plus, Fqs_plus, Fhq_plus, S_minus, Fqs_minus, Fhq_minus)
-                    st.pyplot(fig)
+                    dat1 = np.copy(returns.values)
+                    dat2 = np.copy(vol_garch.values)
 
-                                        # Configurando o título do app
-                    st.write("Gráfico Hurst generalizados (Hurst Exponents)")
-                    # Criando a figura e os eixos
-                    fig, ax = plt.subplots()
-                    # Plotando os valores de Fhq, Fhq_plus, e Fhq_minus
-                    ax.plot(q, Fhq, label="overall", marker='o')
-                    ax.plot(q, Fhq_plus, label="uptrend", marker='x')
-                    ax.plot(q, Fhq_minus, label="downtrend", marker='s')
-                    # Configurando os labels dos eixos
-                    ax.set_xlabel("q")
-                    ax.set_ylabel("expoentes de Hurst generalizados")
-                    # Adicionando a legenda
-                    ax.legend()
-                    # Exibindo o gráfico no Streamlit
-                    st.pyplot(fig)
+                    # Delta 
+                    trend_base = np.exp(np.cumsum(returns.values)) #index-based
+
+                    qorders = list(range(-10, 11))
+                    #"""
+                    est_results_xy = basic_dcca(dat1, dat2, Q=qorders, trend_base=trend_base, asymmetry_base='optional')
+
+                    # Calculando h_(xy)(q) para os diferentes valores de q
+                    h_xy_q_neg_10 = (est_results_xy[5] - est_results_xy[8])[0]
+                    h_xy_q_2 = (est_results_xy[5] - est_results_xy[8])[12]
+                    h_xy_q_10 = (est_results_xy[5] - est_results_xy[8])[20]
+
+                    # Calculando D_(xy)
+                    D_xy = 0.5 * (np.abs(est_results_xy[2][0] - 0.5) + np.abs(est_results_xy[2][20] - 0.5))
+
+                    # Exibindo os resultados de forma organizada e informativa
+                    st.write(f"Resultado dos cálculos:\n")
+                    st.write(f"h_(xy)(q = -10)  = {h_xy_q_neg_10:.4f}")
+                    st.write(f"h_(xy)(q = 2)    = {h_xy_q_2:.4f}")
+                    st.write(f"h_(xy)(q = 10)   = {h_xy_q_10:.4f}")
+                    st.write(f"D_(xy)           = {D_xy:.4f}")
+
+                                        # Configurando a base da tendência
+                    # Renderizar os gráficos
+                    plot_dcca(dat1, dat2)
+
+                    #----------------------------------------
+
+                    trend_base = np.exp(np.cumsum(returns[20:].values))
+                    
+                    dat_11 = np.copy(returns[20:].values)
+                    dat_22 = np.copy(volatility[20:].values)  # index-based
+
+                    #plot_amfdfa_mfadcca(dat_11, dat_22, trend_base)
+
+                    #----------------------------------------
+                    #----------------------------------------
+
+                    trend_base = np.exp(np.cumsum(returns[20:].values))
+                    
+                    dat_11 = np.copy(returns[20:].values)
+                    dat_22 = np.copy(volatility[20:].values)  # index-based
+
+                    # Chamar a função para exibir o gráfico no Streamlit
+                    #plot_mass_function_tau_q(dat_11, dat_22, trend_base)
+
+                    #----------------------------------------
+                    #----------------------------------------
+
+                    trend_base = np.exp(np.cumsum(returns[20:].values))
+                    
+                    dat_11 = np.copy(returns[20:].values)
+                    dat_22 = np.copy(volatility[20:].values)  # index-based
+
+                    # Chamar a função para exibir o gráfico
+                    #plot_singularity_spectra(dat_11, dat_22, trend_base)
+                    #----------------------------------------
+
+                    
+
 
                 except Exception as e:
                     st.error(f"Erro na análise MF-ADCCA: {e}")
@@ -705,41 +915,24 @@ elif escolha == "Análise MF-ADCCA":
                 plot_metrics(prices2, returns2, volatility2, ticker_2)
 
                 try:
-                    S, Fqs, Fhq, S_plus, Fqs_plus, Fhq_plus, S_minus, Fqs_minus, Fhq_minus = dcca(
-                        returns2[20:].values, volatility2[20:].values,S=lag,m=2, Q=q, trend_base=True)
-
-                    st.write("Análise concluída!")
-
+                    
                     st.subheader(f"Análise Multifractal com {ticker_2}")
+
+                    dat1_1 = np.copy(returns2[20:].values)
+                    dat2_2 = np.copy(volatility2[20:].values)
+
+                    # Configurando a base da tendência
                     # Renderizar os gráficos
-                    fig = plot_dcca_results(S, Fqs, Fhq, S_plus, Fqs_plus, Fhq_plus, S_minus, Fqs_minus, Fhq_minus)
-                    st.pyplot(fig)
+                    plot_dcca(dat1_1, dat2_2)
 
-                    # Calcular os expoentes de Hurst generalizados (Hurst Exponents)
-                    # Configurando o título do app
-                    st.write("Gráfico Hurst generalizados (Hurst Exponents)")
-                    # Criando a figura e os eixos
-                    fig, ax = plt.subplots()
-                    # Plotando os valores de Fhq, Fhq_plus, e Fhq_minus
-                    ax.plot(q, Fhq, label="overall", marker='o')
-                    ax.plot(q, Fhq_plus, label="uptrend", marker='x')
-                    ax.plot(q, Fhq_minus, label="downtrend", marker='s')
-                    # Configurando os labels dos eixos
-                    ax.set_xlabel("q")
-                    ax.set_ylabel("expoentes de Hurst generalizados")
-                    # Adicionando a legenda
-                    ax.legend()
-                    # Exibindo o gráfico no Streamlit
-                    st.pyplot(fig)
+                    #----------------------------------------
 
 
+                    #----------------------------------------
 
                    
                 except Exception as e:
                     st.error(f"Erro na análise MF-ADCCA: {e}") 
-
-
-
             
         else:
             st.error("Erro ao carregar dados. Verifique os tickers selecionados ou a conectividade de rede.")
