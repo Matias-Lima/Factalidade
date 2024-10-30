@@ -7,3 +7,4 @@ openpyxl
 altair
 MFDFA
 yfinance
+arch
